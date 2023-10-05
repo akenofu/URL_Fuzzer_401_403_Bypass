@@ -8,6 +8,8 @@ public class URLFuzzer403Bypass implements BurpExtension {
         api.extension().setName("URL Fuzzer - 403 Bypass");
 
         //Register our http handler with Burp.
-        api.http().registerHttpHandler(new MyURLFuzzer(api));
+        var myURLFuzzer = new MyURLFuzzer(api);
+        api.scanner().registerScanCheck(myURLFuzzer);
+
     }
 }
