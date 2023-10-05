@@ -50,6 +50,7 @@ public class MyURLFuzzer  implements HttpHandler {
                 HttpRequestResponse response = api.http().sendRequest(modifiedRequest);
 
                 if (response.response().statusCode() != originalResponseReceived.statusCode()){
+                    // TODO add output to target tab in burp scanner
                     logging.logToOutput("Bypassed !");
                 }
             }
