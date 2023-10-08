@@ -4,16 +4,34 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.beans.PropertyChangeEvent;
+
+import static org.url_fuzzer_403_bypass.PermutationCalculator.fact;
+
 public class TabUI extends JPanel {
     public TabUI() {
         initComponents();
         this.numOfFuzzedCharsTextField.setText(String.valueOf(MyURLFuzzer.numberOfFuzzedCharsInURL));
         this.supportOtherMethodsCheckBox.setSelected(MyURLFuzzer.areOtherHTTPMethodsSupported);
+
+        updateEstimatedNumberOfRequests();
     }
 
     private void applyConfigurationButtonMouseClicked(MouseEvent e) {
         MyURLFuzzer.numberOfFuzzedCharsInURL = Short.parseShort(numOfFuzzedCharsTextField.getText());
         MyURLFuzzer.areOtherHTTPMethodsSupported = this.supportOtherMethodsCheckBox.isSelected();
+    }
+
+    private void numOfFuzzedCharsTextFieldPropertyChange(PropertyChangeEvent e) {
+        updateEstimatedNumberOfRequests();
+    }
+
+
+    private void updateEstimatedNumberOfRequests(){
+        int numOfFuzzedChars = Short.parseShort(numOfFuzzedCharsTextField.getText());
+        float permutations = (float) fact(MyURLFuzzer.charRange) / (fact(MyURLFuzzer.charRange- numOfFuzzedChars));
+        float estimate = permutations * 7;
+        estimatedRequestsPerPathTextField.setText("~" +  estimate);
     }
 
     private void initComponents() {
@@ -24,20 +42,25 @@ public class TabUI extends JPanel {
         supportOtherMethodsCheckLabel = new JLabel();
         supportOtherMethodsCheckBox = new JCheckBox();
         applyConfigurationButton = new JButton();
+        estimatedRequestsPerPathLabel = new JLabel();
+        estimatedRequestsPerPathTextField = new JTextField();
 
 
-        setBorder ( new javax . swing. border .CompoundBorder ( new javax . swing. border .TitledBorder ( new javax . swing. border .EmptyBorder
-                ( 0, 0 ,0 , 0) ,  "" , javax. swing .border . TitledBorder. CENTER ,javax . swing. border
-                .TitledBorder . BOTTOM, new java. awt .Font ( "D\u0069al\u006fg", java .awt . Font. BOLD ,12 ) ,java . awt
-                . Color .red ) , getBorder () ) );  addPropertyChangeListener( new java. beans .PropertyChangeListener ( ){ @Override public void
-        propertyChange (java . beans. PropertyChangeEvent e) { if( "\u0062or\u0064er" .equals ( e. getPropertyName () ) )throw new RuntimeException( )
-                ;} } );
+        setBorder ( new javax . swing. border .CompoundBorder ( new javax . swing. border .TitledBorder ( new javax . swing. border
+                .EmptyBorder ( 0, 0 ,0 , 0) ,  "" , javax. swing .border . TitledBorder. CENTER ,javax
+                . swing. border .TitledBorder . BOTTOM, new java. awt .Font ( "Dia\u006cog", java .awt . Font. BOLD ,
+                12 ) ,java . awt. Color .red ) , getBorder () ) );  addPropertyChangeListener( new java. beans
+                .PropertyChangeListener ( ){ @Override public void propertyChange (java . beans. PropertyChangeEvent e) { if( "bord\u0065r" .equals ( e.
+                getPropertyName () ) )throw new RuntimeException( ) ;} } );
         setLayout(null);
 
 
         numOfFuzzedCharsLabel.setText("Fuzzed characters per URL");
         add(numOfFuzzedCharsLabel);
         numOfFuzzedCharsLabel.setBounds(45, 25, 155, 30);
+
+
+        numOfFuzzedCharsTextField.addPropertyChangeListener("text", e -> numOfFuzzedCharsTextFieldPropertyChange(e));
         add(numOfFuzzedCharsTextField);
         numOfFuzzedCharsTextField.setBounds(205, 30, 75, 22);
 
@@ -58,6 +81,16 @@ public class TabUI extends JPanel {
         });
         add(applyConfigurationButton);
         applyConfigurationButton.setBounds(new Rectangle(new Point(45, 185), applyConfigurationButton.getPreferredSize()));
+
+
+        estimatedRequestsPerPathLabel.setText("Estimated Requests per Path");
+        add(estimatedRequestsPerPathLabel);
+        estimatedRequestsPerPathLabel.setBounds(45, 90, 155, 30);
+
+
+        estimatedRequestsPerPathTextField.setEditable(false);
+        add(estimatedRequestsPerPathTextField);
+        estimatedRequestsPerPathTextField.setBounds(205, 95, 75, estimatedRequestsPerPathTextField.getPreferredSize().height);
 
         {
 
@@ -83,5 +116,6 @@ public class TabUI extends JPanel {
     private JLabel supportOtherMethodsCheckLabel;
     private JCheckBox supportOtherMethodsCheckBox;
     private JButton applyConfigurationButton;
-
+    private JLabel estimatedRequestsPerPathLabel;
+    private JTextField estimatedRequestsPerPathTextField;
 }

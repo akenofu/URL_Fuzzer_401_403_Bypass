@@ -27,13 +27,19 @@ public class MyURLFuzzer implements ScanCheck {
     private final Logging logging;
     private final MontoyaApi api;
     private ArrayList<String> scannedURLs = new ArrayList<>();
-
+    public   char[] charArray;
     public static short numberOfFuzzedCharsInURL = 1;
     public static boolean areOtherHTTPMethodsSupported = false;
+    public static short charRange = 255;
 
     public MyURLFuzzer(MontoyaApi api) {
         this.api = api;
         this.logging = api.logging();
+
+        this.charArray = new char[charRange];
+        for(int i = 0 ; i < charRange; i++){
+            charArray[i] = (char) i;
+        }
     }
 
     @Override
@@ -190,17 +196,13 @@ public class MyURLFuzzer implements ScanCheck {
 
     private void generateAndAddPayloads(String originalPath, ArrayList<String> paths, String[] tokenizedPath, int slashCount) {
 
-        short charRange = 255;
-        char[] charArray = new char[charRange];
-        for(int i = 0 ; i < charRange; i++){
-            charArray[i] = (char) i;
-        }
         char[] current = new char[numberOfFuzzedCharsInURL];
-        generatePermutations(charArray, current, 0, numberOfFuzzedCharsInURL, originalPath, paths, tokenizedPath, slashCount);
+
+        generatePermutations(current, 0, numberOfFuzzedCharsInURL, originalPath, paths, tokenizedPath, slashCount);
 
     }
 
-    public void generatePermutations(char[] charArray, char[] current, int index, int n, String originalPath, ArrayList<String> paths, String[] tokenizedPath, int slashCount) {
+    public void generatePermutations(char[] current, int index, int n, String originalPath, ArrayList<String> paths, String[] tokenizedPath, int slashCount) {
         if (index == n) {
             // Print the current permutation
             addPayloadToPaths(originalPath, paths, new String(current), tokenizedPath, slashCount);
@@ -209,7 +211,7 @@ public class MyURLFuzzer implements ScanCheck {
 
         for (int i = 0; i < charArray.length; i++) {
             current[index] = charArray[i];
-            generatePermutations(charArray, current, index + 1, n, originalPath, paths, tokenizedPath, slashCount);
+            generatePermutations(current, index + 1, n, originalPath, paths, tokenizedPath, slashCount);
         }
     }
 
