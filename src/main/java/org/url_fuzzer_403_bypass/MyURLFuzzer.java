@@ -15,28 +15,56 @@ import burp.api.montoya.scanner.audit.issues.AuditIssueSeverity;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import static burp.api.montoya.scanner.AuditResult.auditResult;
-import static burp.api.montoya.scanner.ConsolidationAction.KEEP_BOTH;
-import static burp.api.montoya.scanner.ConsolidationAction.KEEP_EXISTING;
+import static burp.api.montoya.scanner.ConsolidationAction.*;
 import static burp.api.montoya.scanner.audit.issues.AuditIssue.auditIssue;
 
 
 
 public class MyURLFuzzer implements ScanCheck {
+
     private final Logging logging;
     private final MontoyaApi api;
+    public static short NUM_OF_THREADS = 2;
+    public ArrayList<String> scannedURLs = new ArrayList<>();
 
+    // In milliseconds
+    public static long TIMEOUT = 100;
+    public static ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(NUM_OF_THREADS);
     public MyURLFuzzer(MontoyaApi api) {
         this.api = api;
         this.logging = api.logging();
+        logging.logToOutput("Created MyURLFuzzer");
     }
 
+    public boolean isScanned = false;
     @Override
-    public AuditResult activeAudit(HttpRequestResponse baseRequestResponse, AuditInsertionPoint auditInsertionPoint)
+    public AuditResult activeAudit(HttpRequestResponse baseRequestResponse, AuditInsertionPoint auditInsertionPoint )
     {
 
         ArrayList<AuditIssue> auditIssueList = new ArrayList<>();
+
+        String requestURL = baseRequestResponse.request().url();
+        logging.logToOutput("Active Audit ongoing for " + requestURL);
+        // We don't utilize insertion points, so no point scanning multiple times
+        // Check if item is audited before
+        // A hack to disable the same check for multiple insertion points
+        if(isURLScannedBefore(requestURL)){
+            return new AuditResult() {
+                @Override
+                public List<AuditIssue> auditIssues() {
+                    return null;
+                }
+            };
+        }
+        else{
+            scannedURLs.add(requestURL);
+        }
+
 
         if( isRequestUnAuthorized(baseRequestResponse) ) {
             logging.logToOutput("Found 401/403 Request: " + baseRequestResponse.request().url());
@@ -44,75 +72,105 @@ public class MyURLFuzzer implements ScanCheck {
                 String originalPath = initiatingRequest.path();
                 ArrayList<String> paths = generatePaths(originalPath);
                 for (String path : paths) {
-                    HttpRequest modifiedRequest = initiatingRequest.withPath(path);
-                    HttpRequestResponse modifiedRequestResponse = api.http().sendRequest(modifiedRequest);
-
-                    // Improve: Scan for non-default behavior - scan for clues
-                    if (isBehaviorChanged(baseRequestResponse, modifiedRequestResponse)){
-
-                        // Bypassed
-                        List<HttpRequestResponse> requestResponses = new ArrayList<>();
-                        var highlightedBaseRequestResponse = baseRequestResponse.withResponseMarkers(getResponseHighlights(baseRequestResponse)).withRequestMarkers(getRequestHighlights(baseRequestResponse));
-                        var highlightedModifiedRequestResponse = modifiedRequestResponse.withResponseMarkers(getResponseHighlights(modifiedRequestResponse)).withRequestMarkers(getRequestHighlights(modifiedRequestResponse));
-
-                        requestResponses.add(highlightedBaseRequestResponse);
-                        requestResponses.add(highlightedModifiedRequestResponse);
-
-                        // Add Audit Result
-                        auditIssueList.add(
-                                auditIssue(
-                                        "401/403 Bypass",
-                                        String.format("The Path: `%s` prompted a different response", path) ,
-                                        null,
-                                        baseRequestResponse.request().url(),
-                                        AuditIssueSeverity.HIGH,
-                                        AuditIssueConfidence.FIRM,
-                                        "Sends every available characters at pre-defined place in the URL to to find HTTP Desync bugs between reverse proxies and web servers.\r\n\r\nBased on the research of Rafael da Costa Santos (https://rafa.hashnode.dev/exploiting-http-parsers-inconsistencies)",
-                                        null,
-                                        AuditIssueSeverity.HIGH,
-                                        requestResponses
-                                        )
-                        );
-                    }
+//                    Runnable sendModifiedRequest = new SendModifiedRequest(baseRequestResponse, path, auditIssueList);
+//                    executor.submit(sendModifiedRequest);
+                    new SendModifiedRequest(baseRequestResponse, path, auditIssueList);
                 }
             }
 
 
+        try {
+            executor.awaitTermination(TIMEOUT, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            logging.logToError(e);
+            throw new RuntimeException(e);
+        }
+        logging.logToOutput("Triaging Result");
         return auditResult(auditIssueList);
     }
 
+    private boolean isURLScannedBefore(String URL) {
+        if(scannedURLs.contains(URL)){
+            return true;
+        }
+        else{
+            return false;
+        }
+    }
 
 
-    private boolean isBehaviorChanged(HttpRequestResponse baseRequestResponse, HttpRequestResponse modifiedRequestResponse) {
-        // 404 or 400
-        short[] badStatusCodes = { 404, 400 };
+    public class SendModifiedRequest implements  Runnable {
+        HttpRequestResponse baseRequestResponse;
+        String path;
+        ArrayList<AuditIssue> auditIssueList;
+        public SendModifiedRequest(HttpRequestResponse baseRequestResponse, String path, ArrayList<AuditIssue> auditIssueList){
+            this.baseRequestResponse = baseRequestResponse;
+            this.path = path;
+            this.auditIssueList = auditIssueList;
+        }
 
-        // Check for 404 or 400
-        for (short statusCode: badStatusCodes){
-            if(modifiedRequestResponse.response().statusCode() == statusCode){
-                // Behavior did change, it just errors out
-                return false;
+        public void run() {
+            HttpRequest modifiedRequest = baseRequestResponse.request().withPath(path);
+            HttpRequestResponse modifiedRequestResponse = api.http().sendRequest(modifiedRequest);
 
+            // Improve: Scan for non-default behavior - scan for clues
+            if (isBehaviorChanged(baseRequestResponse, modifiedRequestResponse)){
+
+                // Bypassed
+                List<HttpRequestResponse> requestResponses = new ArrayList<>();
+                var highlightedBaseRequestResponse = baseRequestResponse.withResponseMarkers(getResponseHighlights(baseRequestResponse)).withRequestMarkers(getRequestHighlights(baseRequestResponse));
+                var highlightedModifiedRequestResponse = modifiedRequestResponse.withResponseMarkers(getResponseHighlights(modifiedRequestResponse)).withRequestMarkers(getRequestHighlights(modifiedRequestResponse));
+
+                requestResponses.add(highlightedBaseRequestResponse);
+                requestResponses.add(highlightedModifiedRequestResponse);
+                logging.logToOutput("Found bypass " + path);
+
+
+                auditIssueList.add(
+                        auditIssue(
+                                "401/403 Bypass",
+                                String.format("The Path: `%s` prompted a different response", path) ,
+                                null,
+                                baseRequestResponse.request().url(),
+                                AuditIssueSeverity.HIGH,
+                                AuditIssueConfidence.FIRM,
+                                "Sends every available characters at pre-defined place in the URL to to find HTTP Desync bugs between reverse proxies and web servers.\r\n\r\nBased on the research of Rafael da Costa Santos (https://rafa.hashnode.dev/exploiting-http-parsers-inconsistencies)",
+                                null,
+                                AuditIssueSeverity.HIGH,
+                                requestResponses
+                        )
+                );
             }
         }
 
-        // Check if a response is sent, in case you \r\n, the web server waits forever
-        if(modifiedRequestResponse.response().body().length() <= 0){
-            return  false;
+        private boolean isBehaviorChanged(HttpRequestResponse baseRequestResponse, HttpRequestResponse modifiedRequestResponse) {
+            // 404 or 400
+            short[] badStatusCodes = { 404, 400 };
+
+            // Check for 404 or 400
+            for (short statusCode: badStatusCodes){
+                if(modifiedRequestResponse.response().statusCode() == statusCode){
+                    // Behavior did change, it just errors out
+                    return false;
+
+                }
+            }
+
+            // Check if a response is sent, in case you \r\n, the web server waits forever
+            if(modifiedRequestResponse.response().body().length() <= 0){
+                return  false;
+            }
+
+            // Check for change in status code
+            if (baseRequestResponse.response().statusCode() != modifiedRequestResponse.response().statusCode()){
+                return true;
+            }
+
+
+            // I don't even know how the code can reach here...
+            return false;
         }
-
-        // Check for change in status code
-        if (baseRequestResponse.response().statusCode() != modifiedRequestResponse.response().statusCode()){
-            return true;
-        }
-
-
-        // I don't even know how the code can reach here...
-        return false;
-
-
     }
-
 
     private Marker getResponseHighlights(HttpRequestResponse requestResponse)
     {
@@ -147,12 +205,11 @@ public class MyURLFuzzer implements ScanCheck {
     @Override
     public ConsolidationAction consolidateIssues(AuditIssue newIssue, AuditIssue existingIssue)
     {
-        return existingIssue.name().equals(newIssue.name()) ? KEEP_EXISTING : KEEP_BOTH;
+        return existingIssue.name().equals(newIssue.name())
+                ? KEEP_EXISTING : KEEP_BOTH;
+
 
     }
-
-    
-    
     public ArrayList<String> generatePaths(String originalPath){
         ArrayList<String> paths = new ArrayList<String>();
 
