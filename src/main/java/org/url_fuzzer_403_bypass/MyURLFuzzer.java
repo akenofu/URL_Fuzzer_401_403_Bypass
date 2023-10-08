@@ -28,6 +28,8 @@ public class MyURLFuzzer implements ScanCheck {
     private final MontoyaApi api;
     private ArrayList<String> scannedURLs = new ArrayList<>();
 
+    public static short maxNumberOfFuzzedCharacters = 1;
+
     public MyURLFuzzer(MontoyaApi api) {
         this.api = api;
         this.logging = api.logging();
@@ -39,6 +41,7 @@ public class MyURLFuzzer implements ScanCheck {
 
         ArrayList<AuditIssue> auditIssueList = new ArrayList<>();
         String requestURL = baseRequestResponse.request().url();
+
 
         // Scan every URL only once, regardless of how many insertion points
         if(isURLScannedBefore(requestURL)){
