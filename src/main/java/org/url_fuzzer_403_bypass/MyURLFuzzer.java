@@ -28,7 +28,8 @@ public class MyURLFuzzer implements ScanCheck {
     private final MontoyaApi api;
     private ArrayList<String> scannedURLs = new ArrayList<>();
 
-    public static short maxNumberOfFuzzedCharacters = 1;
+    public static short numberOfFuzzedCharsInURL = 1;
+    public static boolean areOtherHTTPMethodsSupported = false;
 
     public MyURLFuzzer(MontoyaApi api) {
         this.api = api;
@@ -38,7 +39,6 @@ public class MyURLFuzzer implements ScanCheck {
     @Override
     public AuditResult activeAudit(HttpRequestResponse baseRequestResponse, AuditInsertionPoint auditInsertionPoint)
     {
-
         ArrayList<AuditIssue> auditIssueList = new ArrayList<>();
         String requestURL = baseRequestResponse.request().url();
 
@@ -179,53 +179,90 @@ public class MyURLFuzzer implements ScanCheck {
     
     public ArrayList<String> generatePaths(String originalPath){
         ArrayList<String> paths = new ArrayList<String>();
+        String[] tokenizedPath =  originalPath.split("/");
+        int slashCount = tokenizedPath.length;
 
-        for(int x = 0; x < 255 ; x++){
-            // Generate unicode character payload from char code
-            String payload = Character.toString((char)x);
+        generateAndAddPayloads(originalPath, paths, tokenizedPath, slashCount);
 
 
-            String[] tokenizedPath =  originalPath.split("/");
-            int slashCount = tokenizedPath.length;
+        return paths;
+    }
 
-            // Insert payload before first slash
-            paths.add(payload + originalPath);
+    private void generateAndAddPayloads(String originalPath, ArrayList<String> paths, String[] tokenizedPath, int slashCount) {
 
-            // Insert payload in the middle of each word
+        short charRange = 255;
+        char[] charArray = new char[charRange];
+        for(int i = 0 ; i < charRange; i++){
+            charArray[i] = (char) i;
+        }
+        char[] current = new char[numberOfFuzzedCharsInURL];
+        generatePermutations(charArray, current, 0, numberOfFuzzedCharsInURL, originalPath, paths, tokenizedPath, slashCount);
+
+    }
+
+    public void generatePermutations(char[] charArray, char[] current, int index, int n, String originalPath, ArrayList<String> paths, String[] tokenizedPath, int slashCount) {
+        if (index == n) {
+            // Print the current permutation
+            addPayloadToPaths(originalPath, paths, new String(current), tokenizedPath, slashCount);
+            return;
+        }
+
+        for (int i = 0; i < charArray.length; i++) {
+            current[index] = charArray[i];
+            generatePermutations(charArray, current, index + 1, n, originalPath, paths, tokenizedPath, slashCount);
+        }
+    }
+
+    private void addPayloadToPaths(String originalPath, ArrayList<String> paths, String payload,  String[] tokenizedPath , int slashCount) {
+        // Insert payload before first slash
+        paths.add(payload + originalPath);
+
+        // Insert `/payload/` before original path
+        if(!originalPath.startsWith("/")){
+            paths.add("/" + payload + "/" + originalPath);
+        }
+        paths.add( payload + "/" + originalPath);
+
+
+        // Insert payload in the middle of each word
             /* Test Cases
                 /admin --> [ 'admin' ]
                 /admin/admin -->  [ 'admin' , 'admin' ]
                 /admin/admin/admin  --> ['admin', 'admin', 'admin' ]
              */
 
-            for (int j = 0; j < slashCount; j++){
-                StringBuilder sb =  new StringBuilder();
-                for(int z = 0 ; z < slashCount; z++) {
-                    if (originalPath.startsWith("/") && sb.indexOf("/") != 0 ){
-                        sb.append("/");
-                    }
-                    if( !tokenizedPath[z].isEmpty()) {
-                        sb.append(tokenizedPath[z]);
-                        if(z == j){
-                            sb.append(payload);
-                        }
-                        sb.append("/");
-                    }
-                }
-                paths.add(sb.toString());
-            }
+        for (int j = 0; j < slashCount; j++){
+            StringBuilder sb =  new StringBuilder();
+            for(int z = 0 ; z < slashCount; z++) {
+                if (originalPath.startsWith("/") && sb.indexOf("/") != 0 ){
+                  sb.append("/");
+              }
+           if( !tokenizedPath[z].isEmpty()) {
+                    sb.append(tokenizedPath[z]);
+                 if(z == j){
+                       sb.append(payload);
+                  }
+                  sb.append("/");
+              }
+           }
+           paths.add(sb.toString());
+      }
 
-            // Insert Payload At the end of the path
-            paths.add(originalPath + payload);
+        // Insert `/payload/` after original path
+        // Test cases:
+        // /admin --> /admin/;/
+        // /Admin/ --> /admin/;/
+        if(!originalPath.endsWith("/")){
+            paths.add( originalPath + "/"  + payload + "/");
         }
+        paths.add( originalPath + payload + "/");
 
-
-        return paths;
+        // Insert Payload At the end of the path
+        paths.add(originalPath + payload);
     }
 
     public boolean isRequestUnAuthorized(HttpRequestResponse responseReceived){
         boolean isStatusCodeUnAuthorized = false;
-        boolean isGetRequest = false;
         short responseStatusCode = responseReceived.response().statusCode();
         short[] unAuthorizedStatusCodes = { 403, 401 };
 
@@ -237,12 +274,12 @@ public class MyURLFuzzer implements ScanCheck {
             }
         }
 
-        if(responseReceived.request().method() == "GET") {
-            isGetRequest = true;
+        if(MyURLFuzzer.areOtherHTTPMethodsSupported) {
+            return isStatusCodeUnAuthorized;
         }
+        else{
+               return isStatusCodeUnAuthorized & responseReceived.request().method() == "GET" ;
 
-
-        return  (isStatusCodeUnAuthorized && isGetRequest) ;
-
+        }
     }
 }
