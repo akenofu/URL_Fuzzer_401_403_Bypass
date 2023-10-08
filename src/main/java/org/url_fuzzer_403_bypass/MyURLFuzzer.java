@@ -26,6 +26,7 @@ import static burp.api.montoya.scanner.audit.issues.AuditIssue.auditIssue;
 public class MyURLFuzzer implements ScanCheck {
     private final Logging logging;
     private final MontoyaApi api;
+    private ArrayList<String> scannedURLs = new ArrayList<>();
 
     public MyURLFuzzer(MontoyaApi api) {
         this.api = api;
@@ -37,50 +38,62 @@ public class MyURLFuzzer implements ScanCheck {
     {
 
         ArrayList<AuditIssue> auditIssueList = new ArrayList<>();
+        String requestURL = baseRequestResponse.request().url();
+
+        // Scan every URL only once, regardless of how many insertion points
+        if(isURLScannedBefore(requestURL)){
+            return auditResult(auditIssueList);
+        }
+        else{
+            scannedURLs.add(requestURL);
+            logging.logToOutput("Scanning: " + requestURL);
+        }
 
         if( isRequestUnAuthorized(baseRequestResponse) ) {
-            logging.logToOutput("Found 401/403 Request: " + baseRequestResponse.request().url());
+            logging.logToOutput(String.format("Found %d request: %s", baseRequestResponse.response().statusCode(), baseRequestResponse.request().url()));
                 HttpRequest initiatingRequest = baseRequestResponse.request();
                 String originalPath = initiatingRequest.path();
                 ArrayList<String> paths = generatePaths(originalPath);
                 for (String path : paths) {
-                    HttpRequest modifiedRequest = initiatingRequest.withPath(path);
-                    HttpRequestResponse modifiedRequestResponse = api.http().sendRequest(modifiedRequest);
-
-                    // Improve: Scan for non-default behavior - scan for clues
-                    if (isBehaviorChanged(baseRequestResponse, modifiedRequestResponse)){
-
-                        // Bypassed
-                        List<HttpRequestResponse> requestResponses = new ArrayList<>();
-                        var highlightedBaseRequestResponse = baseRequestResponse.withResponseMarkers(getResponseHighlights(baseRequestResponse)).withRequestMarkers(getRequestHighlights(baseRequestResponse));
-                        var highlightedModifiedRequestResponse = modifiedRequestResponse.withResponseMarkers(getResponseHighlights(modifiedRequestResponse)).withRequestMarkers(getRequestHighlights(modifiedRequestResponse));
-
-                        requestResponses.add(highlightedBaseRequestResponse);
-                        requestResponses.add(highlightedModifiedRequestResponse);
-
-                        // Add Audit Result
-                        auditIssueList.add(
-                                auditIssue(
-                                        "401/403 Bypass",
-                                        String.format("The Path: `%s` prompted a different response", path) ,
-                                        null,
-                                        baseRequestResponse.request().url(),
-                                        AuditIssueSeverity.HIGH,
-                                        AuditIssueConfidence.FIRM,
-                                        "Sends every available characters at pre-defined place in the URL to to find HTTP Desync bugs between reverse proxies and web servers.\r\n\r\nBased on the research of Rafael da Costa Santos (https://rafa.hashnode.dev/exploiting-http-parsers-inconsistencies)",
-                                        null,
-                                        AuditIssueSeverity.HIGH,
-                                        requestResponses
-                                        )
-                        );
-                    }
+                    scanPath(baseRequestResponse, path, initiatingRequest, auditIssueList);
                 }
             }
-
 
         return auditResult(auditIssueList);
     }
 
+    private void scanPath(HttpRequestResponse baseRequestResponse, String path, HttpRequest initiatingRequest, ArrayList<AuditIssue> auditIssueList) {
+        HttpRequest modifiedRequest = initiatingRequest.withPath(path);
+        HttpRequestResponse modifiedRequestResponse = api.http().sendRequest(modifiedRequest);
+
+        // Improve: Scan for non-default behavior - scan for clues
+        if (isBehaviorChanged(baseRequestResponse, modifiedRequestResponse)){
+
+            // Bypassed
+            List<HttpRequestResponse> requestResponses = new ArrayList<>();
+            var highlightedBaseRequestResponse = baseRequestResponse.withResponseMarkers(getResponseHighlights(baseRequestResponse)).withRequestMarkers(getRequestHighlights(baseRequestResponse));
+            var highlightedModifiedRequestResponse = modifiedRequestResponse.withResponseMarkers(getResponseHighlights(modifiedRequestResponse)).withRequestMarkers(getRequestHighlights(modifiedRequestResponse));
+
+            requestResponses.add(highlightedBaseRequestResponse);
+            requestResponses.add(highlightedModifiedRequestResponse);
+
+            // Add Audit Result
+            auditIssueList.add(
+                    auditIssue(
+                            "401/403 Bypass",
+                            String.format("The Path: `%s` prompted a different response", path) ,
+                            null,
+                            baseRequestResponse.request().url(),
+                            AuditIssueSeverity.HIGH,
+                            AuditIssueConfidence.FIRM,
+                            "Sends every available characters at pre-defined place in the URL to to find HTTP Desync bugs between reverse proxies and web servers.\r\n\r\nBased on the research of Rafael da Costa Santos (https://rafa.hashnode.dev/exploiting-http-parsers-inconsistencies)",
+                            null,
+                            AuditIssueSeverity.HIGH,
+                            requestResponses
+                            )
+            );
+        }
+    }
 
 
     private boolean isBehaviorChanged(HttpRequestResponse baseRequestResponse, HttpRequestResponse modifiedRequestResponse) {
@@ -113,6 +126,14 @@ public class MyURLFuzzer implements ScanCheck {
 
     }
 
+    private boolean isURLScannedBefore(String URL) {
+        if(scannedURLs.contains(URL)){
+            return true;
+        }
+        else{
+            return false;
+        }
+    }
 
     private Marker getResponseHighlights(HttpRequestResponse requestResponse)
     {
