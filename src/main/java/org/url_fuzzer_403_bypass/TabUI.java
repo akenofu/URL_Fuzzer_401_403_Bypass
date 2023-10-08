@@ -1,14 +1,18 @@
 package org.url_fuzzer_403_bypass;
 
 import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.beans.PropertyChangeEvent;
 
-import static org.url_fuzzer_403_bypass.PermutationCalculator.fact;
+import static java.lang.Math.pow;
 
 public class TabUI extends JPanel {
+
+
     public TabUI() {
         initComponents();
         this.numOfFuzzedCharsTextField.setText(String.valueOf(MyURLFuzzer.numberOfFuzzedCharsInURL));
@@ -29,10 +33,10 @@ public class TabUI extends JPanel {
 
     private void updateEstimatedNumberOfRequests(){
         int numOfFuzzedChars = Short.parseShort(numOfFuzzedCharsTextField.getText());
-        float permutations = (float) fact(MyURLFuzzer.charRange) / (fact(MyURLFuzzer.charRange- numOfFuzzedChars));
-        float estimate = permutations * 7;
+        long estimate = (long)pow(MyURLFuzzer.charRange, numOfFuzzedChars) * 7 ;
         estimatedRequestsPerPathTextField.setText("~" +  estimate);
     }
+
 
     private void initComponents() {
 
@@ -48,9 +52,9 @@ public class TabUI extends JPanel {
 
         setBorder ( new javax . swing. border .CompoundBorder ( new javax . swing. border .TitledBorder ( new javax . swing. border
                 .EmptyBorder ( 0, 0 ,0 , 0) ,  "" , javax. swing .border . TitledBorder. CENTER ,javax
-                . swing. border .TitledBorder . BOTTOM, new java. awt .Font ( "Dia\u006cog", java .awt . Font. BOLD ,
+                . swing. border .TitledBorder . BOTTOM, new java. awt .Font ( "Dialog", java .awt . Font. BOLD ,
                 12 ) ,java . awt. Color .red ) , getBorder () ) );  addPropertyChangeListener( new java. beans
-                .PropertyChangeListener ( ){ @Override public void propertyChange (java . beans. PropertyChangeEvent e) { if( "bord\u0065r" .equals ( e.
+                .PropertyChangeListener ( ){ @Override public void propertyChange (java . beans. PropertyChangeEvent e) { if( "border" .equals ( e.
                 getPropertyName () ) )throw new RuntimeException( ) ;} } );
         setLayout(null);
 
@@ -60,7 +64,22 @@ public class TabUI extends JPanel {
         numOfFuzzedCharsLabel.setBounds(45, 25, 155, 30);
 
 
-        numOfFuzzedCharsTextField.addPropertyChangeListener("text", e -> numOfFuzzedCharsTextFieldPropertyChange(e));
+        numOfFuzzedCharsTextField.getDocument().addDocumentListener(new DocumentListener() {public void changedUpdate(DocumentEvent e) {
+                updateEstimatedNumberOfRequests();
+
+            }
+
+            public void insertUpdate(DocumentEvent e) {
+                updateEstimatedNumberOfRequests();
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent e) {
+
+            }
+
+        });
+
         add(numOfFuzzedCharsTextField);
         numOfFuzzedCharsTextField.setBounds(205, 30, 75, 22);
 
