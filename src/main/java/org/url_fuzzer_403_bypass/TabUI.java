@@ -7,6 +7,7 @@ import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.beans.PropertyChangeEvent;
+import java.util.ArrayList;
 
 import static java.lang.Math.pow;
 
@@ -24,6 +25,7 @@ public class TabUI extends JPanel {
     private void applyConfigurationButtonMouseClicked(MouseEvent e) {
         MyURLFuzzer.numberOfFuzzedCharsInURL = Short.parseShort(numOfFuzzedCharsTextField.getText());
         MyURLFuzzer.areOtherHTTPMethodsSupported = this.supportOtherMethodsCheckBox.isSelected();
+        MyURLFuzzer.scannedURLs = new ArrayList<>();
     }
 
     private void numOfFuzzedCharsTextFieldPropertyChange(PropertyChangeEvent e) {

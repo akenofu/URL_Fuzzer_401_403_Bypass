@@ -26,7 +26,7 @@ import static burp.api.montoya.scanner.audit.issues.AuditIssue.auditIssue;
 public class MyURLFuzzer implements ScanCheck {
     private final Logging logging;
     private final MontoyaApi api;
-    private ArrayList<String> scannedURLs = new ArrayList<>();
+    public static ArrayList<String> scannedURLs = new ArrayList<>();
     public   char[] charArray;
     public static short numberOfFuzzedCharsInURL = 1;
     public static boolean areOtherHTTPMethodsSupported = false;
