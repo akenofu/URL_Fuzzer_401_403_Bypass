@@ -90,12 +90,12 @@ public class MyURLFuzzer implements ScanCheck {
             auditIssueList.add(
                     auditIssue(
                             "401/403 Bypass",
-                            String.format("The Path: `%s` prompted a different response", path) ,
-                            null,
+                            String.format("The path: `%s` prompted a different response code from the server.", path) ,
+                            "Update the web server and all proxies on the way to the latest version. For 0-Days, report to the vendor.",
                             baseRequestResponse.request().url(),
                             AuditIssueSeverity.HIGH,
                             AuditIssueConfidence.FIRM,
-                            "Sends every available characters at pre-defined place in the URL to to find HTTP Desync bugs between reverse proxies and web servers.\r\n\r\nBased on the research of Rafael da Costa Santos (https://rafa.hashnode.dev/exploiting-http-parsers-inconsistencies)",
+                            "Web servers and proxies interpret special characters in different ways. While a web server may normalize a path, a proxy may not do the same, and vice versa. Alternatively, different web servers and proxies normalize pathes differnetly. In some cases, these inconsistencies in parsing special characters leads to cases of bypassing ACLs enforced by proxies or interesting behavior. Based on the research of Rafael da Costa Santos (https://rafa.hashnode.dev/exploiting-http-parsers-inconsistencies)",
                             null,
                             AuditIssueSeverity.HIGH,
                             requestResponses
