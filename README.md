@@ -1,6 +1,6 @@
 ﻿# URL Fuzzer 401/403 Bypass
 
-Fuzz the URL with all available ASCII characters to identify parser inconsistencies. Based on the research of Rafael da Costa Santos (https://rafa.hashnode.dev/exploiting-http-parsers-inconsistencies).
+Fuzz the URL with all available ASCII characters to identify parser inconsistencies. Based on the research of Rafael da Costa Santos (https://rafa.hashnode.dev/exploiting-http-parsers-inconsistencies) and Orange Tsai (https://youtu.be/28xWcRegncw?si=t6BcScfQsz-2wFap).
 
 ## Demo
 
